@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>臺北榮總特定診間看診進度</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #c93692;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .filter-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .filter-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        .filter-input:focus {
+            border-color: #c93692;
+        }
+        .filter-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .filter-btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        .status-bar {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .progress-container {
+            padding: 20px;
+        }
+        .clinic-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .clinic-card.active {
+            border-color: #c93692;
+            box-shadow: 0 5px 15px rgba(201, 54, 146, 0.2);
+            background: linear-gradient(135deg, #fff 0%, #fef6f9 100%);
+        }
+        .clinic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .clinic-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .clinic-room {
+            font-size: 18px;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .doctor-name {
+            font-size: 18px;
+            color: #0f02b3;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .current-number {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .number-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #c62b42;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .location {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .controls {
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-refresh {
+            background: #28a745;
+        }
+        .btn-refresh:hover {
+            background: #1e7e34;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #007bff;
+        }
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #dc3545;
+            background: #f8d7da;
+            border-radius: 10px;
+            margin: 20px;
+        }
+        .last-update {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .auto-refresh-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 18px;
+        }
+        .match-highlight {
+            background-color: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        @media (max-width: 600px) {
+            .clinic-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            .number-display {
+                font-size: 36px;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+            .filter-group {
+                flex-direction: column;
+            }
+            .filter-input {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>臺北榮總特定診間看診進度</h1>
+            <div id="currentDate"></div>
+        </div>
+        
+        <div class="filter-section">
+            <div class="filter-group">
+                <input type="text" id="roomFilter" class="filter-input" placeholder="輸入診間號碼 (例如: 1211)" value="1211">
+                <input type="text" id="doctorFilter" class="filter-input" placeholder="輸入醫師姓名 (例如: 尤香玉)" value="尤香玉">
+                <button class="filter-btn" onclick="applyFilters()">篩選顯示</button>
+            </div>
+            <div style="color: #666; font-size: 14px; text-align: center;">
+                提示: 可以只輸入診間或醫師，或兩者都輸入來精確篩選
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="auto-refresh-indicator">
+                <div class="indicator"></div>
+                <span>自動更新已啟用 (60秒)</span>
+            </div>
+            <div>最後更新: <span id="updateTime">--:--:--</span></div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="loading">載入看診進度中...</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-refresh" onclick="manualRefresh()" id="refreshBtn">
+                立即更新
+            </button>
+            <button class="btn" onclick="toggleAutoRefresh()" id="autoRefreshBtn">
+                暫停自動更新
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 配置
+        const CONFIG = {
+            targetUrl: 'https://www6.vghtpe.gov.tw/reg/realTime.do?type=realtime&time=0&sec=0NA-1NA-2NA-0MR-1MR-2MR-0ND-1ND-2ND-0NB-1NB-2NB-0NJ-1NJ-2NJ-0NH-1NH-2NH-0NK-1NK-2NK-0NN-1NN-2NN',
+            refreshInterval: 60000, // 60秒
+            autoRefresh: true
+        };
+
+        let refreshTimer = null;
+        let isAutoRefresh = CONFIG.autoRefresh;
+        let currentFilters = {
+            room: '1211',
+            doctor: '尤香玉'
+        };
+
+        // 初始化日期顯示
+        function initializeDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('zh-TW', options);
+        }
+
+        // 更新時間顯示
+        function updateTimeDisplay() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-TW');
+            document.getElementById('updateTime').textContent = timeString;
+        }
+
+        // 應用篩選條件
+        function applyFilters() {
+            currentFilters.room = document.getElementById('roomFilter').value.trim();
+            currentFilters.doctor = document.getElementById('doctorFilter').value.trim();
+            
+            // 立即刷新數據
+            manualRefresh();
+        }
+
+        // 顯示載入狀態
+        function showLoading() {
+            document.getElementById('progressContainer').innerHTML = '<div class="loading">載入看診進度中...</div>';
+        }
+
+        // 顯示錯誤
+        function showError(message) {
+            document.getElementById('progressContainer').innerHTML = `
+                <div class="error">
+                    <h3>無法取得看診進度</h3>
+                    <p>${message}</p>
+                    <p>請檢查網路連接，或稍後再試。</p>
+                </div>
+            `;
+        }
+
+        // 顯示無結果
+        function showNoResults() {
+            let message = '沒有找到符合條件的診間';
+            if (currentFilters.room && currentFilters.doctor) {
+                message = `沒有找到診間 ${currentFilters.room} 的 ${currentFilters.doctor} 醫師`;
+            } else if (currentFilters.room) {
+                message = `沒有找到診間 ${currentFilters.room}`;
+            } else if (currentFilters.doctor) {
+                message = `沒有找到 ${currentFilters.doctor} 醫師`;
+            }
+            
+            document.getElementById('progressContainer').innerHTML = `
+                <div class="no-results">
+                    <h3>${message}</h3>
+                    <p>請檢查篩選條件是否正確，或嘗試其他診間/醫師</p>
+                </div>
+            `;
+        }
+
+        // 使用CORS代理獲取數據
+        async function fetchWithCORSProxy(url) {
+            const proxies = [
+                'https://api.allorigins.win/raw?url=',
+                'https://cors-anywhere.herokuapp.com/',
+                'https://corsproxy.io/?'
+            ];
+
+            for (const proxy of proxies) {
+                try {
+                    const proxyUrl = proxy + encodeURIComponent(url);
+                    console.log('嘗試代理:', proxy);
+                    
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'text/html',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+
+                    if (response.ok) {
+                        return await response.text();
+                    }
+                } catch (error) {
+                    console.warn(`代理 ${proxy} 失敗:`, error);
+                    continue;
+                }
+            }
+            
+            throw new Error('所有CORS代理都失敗了');
+        }
+
+        // 高亮匹配文本
+        function highlightText(text, searchTerm) {
+            if (!searchTerm) return text;
+            
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="match-highlight">$1</span>');
+        }
+
+        // 解析HTML並提取看診進度（根據篩選條件）
+        function parseClinicProgress(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // 查找所有看診進度表格
+            const progressTables = doc.querySelectorAll('.table_info.pwd_info_table');
+            
+            if (progressTables.length === 0) {
+                throw new Error('找不到看診進度資訊');
+            }
+
+            let htmlOutput = '';
+            let foundMatch = false;
+            
+            progressTables.forEach((table, index) => {
+                const department = table.querySelector('font[color="black"]')?.textContent?.trim() || '未知科別';
+                const room = table.querySelector('font[size="4"][color="blue"]')?.textContent?.trim() || '未知診間';
+                const doctor = table.querySelector('font[color="#0f02b3"] font[size="4"]')?.textContent?.trim() || '未知醫師';
+                const currentNumber = table.querySelector('font[size="6"][color="#c62b42"]')?.textContent?.trim() || '---';
+                const location = table.querySelector('th[style*="text-align: center; font-size:14px;"]')?.textContent?.trim() || '未知地點';
+                const lastUpdate = table.querySelector('font[size="2"]')?.textContent?.trim() || '';
+
+                // 應用篩選條件
+                let shouldDisplay = true;
+                
+                if (currentFilters.room && !room.includes(currentFilters.room)) {
+                    shouldDisplay = false;
+                }
+                
+                if (currentFilters.doctor && !doctor.includes(currentFilters.doctor)) {
+                    shouldDisplay = false;
+                }
+
+                if (shouldDisplay) {
+                    foundMatch = true;
+                    
+                    // 高亮匹配的文本
+                    const highlightedRoom = highlightText(room, currentFilters.room);
+                    const highlightedDoctor = highlightText(doctor, currentFilters.doctor);
+                    
+                    htmlOutput += `
+                        <div class="clinic-card active">
+                            <div class="clinic-header">
+                                <div class="clinic-name">${department}</div>
+                                <div class="clinic-room">${highlightedRoom} 診</div>
+                            </div>
+                            <div class="doctor-name">${highlightedDoctor} 醫師</div>
+                            <div class="current-number">
+                                <div>目前叫號</div>
+                                <div class="number-display">${currentNumber}</div>
+                            </div>
+                            <div class="location">${location}</div>
+                            ${lastUpdate ? `<div class="last-update">${lastUpdate}</div>` : ''}
+                        </div>
+                    `;
+                }
+            });
+
+            if (!foundMatch) {
+                showNoResults();
+                return '';
+            }
+
+            return htmlOutput;
+        }
+
+        // 獲取看診進度數據
+        async function fetchClinicProgress() {
+            try {
+                showLoading();
+                
+                const html = await fetchWithCORSProxy(CONFIG.targetUrl);
+                const progressHtml = parseClinicProgress(html);
+                
+                // 更新顯示
+                if (progressHtml) {
+                    document.getElementById('progressContainer').innerHTML = progressHtml;
+                }
+                updateTimeDisplay();
+                
+                // 啟用刷新按鈕
+                document.getElementById('refreshBtn').disabled = false;
+                document.getElementById('refreshBtn').textContent = '立即更新';
+                
+                return true;
+                
+            } catch (error) {
+                console.error('獲取看診進度失敗:', error);
+                showError(error.message);
+                document.getElementById('refreshBtn').disabled = false;
+                document.getElementById('refreshBtn').textContent = '立即更新';
+                return false;
+            }
+        }
+
+        // 開始自動刷新
+        function startAutoRefresh() {
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
+            
+            if (isAutoRefresh) {
+                refreshTimer = setTimeout(async () => {
+                    await fetchClinicProgress();
+                    startAutoRefresh();
+                }, CONFIG.refreshInterval);
+            }
+        }
+
+        // 手動刷新
+        async function manualRefresh() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '更新中...';
+            
+            await fetchClinicProgress();
+            
+            if (isAutoRefresh) {
+                startAutoRefresh(); // 重新開始自動刷新
+            }
+        }
+
+        // 切換自動刷新
+        function toggleAutoRefresh() {
+            isAutoRefresh = !isAutoRefresh;
+            const btn = document.getElementById('autoRefreshBtn');
+            
+            if (isAutoRefresh) {
+                btn.textContent = '暫停自動更新';
+                startAutoRefresh();
+            } else {
+                btn.textContent = '啟用自動更新';
+                if (refreshTimer) {
+                    clearTimeout(refreshTimer);
+                    refreshTimer = null;
+                }
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDate();
+            updateTimeDisplay();
+            
+            // 設置初始篩選條件
+            document.getElementById('roomFilter').value = currentFilters.room;
+            document.getElementById('doctorFilter').value = currentFilters.doctor;
+            
+            // 開始獲取數據
+            fetchClinicProgress().then(() => {
+                if (isAutoRefresh) {
+                    startAutoRefresh();
+                }
+            });
+
+            // 每秒更新時間顯示
+            setInterval(updateTimeDisplay, 1000);
+
+            // 輸入框回車快捷鍵
+            document.getElementById('roomFilter').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') applyFilters();
+            });
+            
+            document.getElementById('doctorFilter').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') applyFilters();
+            });
+
+            // 頁面可見性變化處理
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    if (refreshTimer) {
+                        clearTimeout(refreshTimer);
+                        refreshTimer = null;
+                    }
+                } else if (isAutoRefresh) {
+                    startAutoRefresh();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
