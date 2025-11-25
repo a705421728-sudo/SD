@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>臺北榮總特定診間看診進度</title>
+    <title>臺北榮總多時段看診進度查詢</title>
     <style>
         * {
             margin: 0;
@@ -17,7 +17,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -84,14 +84,26 @@
         }
         .progress-container {
             padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .time-section {
+            grid-column: 1 / -1;
+            margin: 10px 0;
+            padding: 10px 0;
+            border-bottom: 2px solid #e9ecef;
+            color: #c93692;
+            font-weight: bold;
+            font-size: 18px;
         }
         .clinic-card {
             background: white;
             border: 2px solid #e9ecef;
             border-radius: 10px;
             padding: 20px;
-            margin-bottom: 20px;
             transition: all 0.3s ease;
+            position: relative;
         }
         .clinic-card.active {
             border-color: #c93692;
@@ -107,17 +119,17 @@
             gap: 10px;
         }
         .clinic-name {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #333;
         }
         .clinic-room {
-            font-size: 18px;
+            font-size: 16px;
             color: #007bff;
             font-weight: bold;
         }
         .doctor-name {
-            font-size: 18px;
+            font-size: 16px;
             color: #0f02b3;
             text-align: center;
             margin: 10px 0;
@@ -213,12 +225,41 @@
             border-radius: 3px;
             font-weight: bold;
         }
+        .time-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        .morning-badge {
+            background: #28a745;
+        }
+        .afternoon-badge {
+            background: #007bff;
+        }
+        .cache-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 14px;
+            color: #856404;
+        }
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
         @media (max-width: 600px) {
+            .progress-container {
+                grid-template-columns: 1fr;
+            }
             .clinic-header {
                 flex-direction: column;
                 text-align: center;
@@ -241,13 +282,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>臺北榮總特定診間看診進度</h1>
+            <h1>臺北榮總多時段看診進度查詢</h1>
             <div id="currentDate"></div>
         </div>
         
         <div class="filter-section">
             <div class="filter-group">
-                <input type="text" id="roomFilter" class="filter-input" placeholder="輸入診間號碼 (例如: 1211)" value="1211">
+                <input type="text" id="roomFilter" class="filter-input" placeholder="輸入診間號碼 (例如: 1211)" value="">
                 <input type="text" id="doctorFilter" class="filter-input" placeholder="輸入醫師姓名 (例如: 尤香玉)" value="尤香玉">
                 <button class="filter-btn" onclick="applyFilters()">篩選顯示</button>
             </div>
@@ -281,15 +322,17 @@
     <script>
         // 配置
         const CONFIG = {
-            targetUrl: 'https://www6.vghtpe.gov.tw/reg/realTime.do?type=realtime&time=0&sec=0NA-1NA-2NA-0MR-1MR-2MR-0ND-1ND-2ND-0NB-1NB-2NB-0NJ-1NJ-2NJ-0NH-1NH-2NH-0NK-1NK-2NK-0NN-1NN-2NN',
+            morningUrl: 'https://www6.vghtpe.gov.tw/reg/realTime.do?type=realtime&time=0&sec=0NA-1NA-2NA-0MR-1MR-2MR-0ND-1ND-2ND-0NB-1NB-2NB-0NJ-1NJ-2NJ-0NH-1NH-2NH-0NK-1NK-2NK-0NN-1NN-2NN',
+            afternoonUrl: 'https://www6.vghtpe.gov.tw/reg/realTime.do?type=realtime&time=1&sec=0NA-1NA-2NA-0MR-1MR-2MR-0ND-1ND-2ND-0NB-1NB-2NB-0NJ-1NJ-2NJ-0NH-1NH-2NH-0NK-1NK-2NK-0NN-1NN-2NN',
             refreshInterval: 60000, // 60秒
-            autoRefresh: true
+            autoRefresh: true,
+            cacheBusting: true  // 添加這個設置來防止緩存問題
         };
 
         let refreshTimer = null;
         let isAutoRefresh = CONFIG.autoRefresh;
         let currentFilters = {
-            room: '1211',
+            room: '',
             doctor: '尤香玉'
         };
 
@@ -351,8 +394,12 @@
             `;
         }
 
-        // 使用CORS代理獲取數據
+        // 使用CORS代理獲取數據，並防止緩存
         async function fetchWithCORSProxy(url) {
+            // 添加時間戳防止緩存
+            const timestamp = new Date().getTime();
+            const cacheBusterUrl = CONFIG.cacheBusting ? `${url}&_t=${timestamp}` : url;
+            
             const proxies = [
                 'https://api.allorigins.win/raw?url=',
                 'https://cors-anywhere.herokuapp.com/',
@@ -361,15 +408,19 @@
 
             for (const proxy of proxies) {
                 try {
-                    const proxyUrl = proxy + encodeURIComponent(url);
+                    const proxyUrl = proxy + encodeURIComponent(cacheBusterUrl);
                     console.log('嘗試代理:', proxy);
                     
                     const response = await fetch(proxyUrl, {
                         method: 'GET',
                         headers: {
                             'Accept': 'text/html',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0'
+                        },
+                        cache: 'no-cache'
                     });
 
                     if (response.ok) {
@@ -393,7 +444,7 @@
         }
 
         // 解析HTML並提取看診進度（根據篩選條件）
-        function parseClinicProgress(html) {
+        function parseClinicProgress(html, timePeriod) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
@@ -433,8 +484,13 @@
                     const highlightedRoom = highlightText(room, currentFilters.room);
                     const highlightedDoctor = highlightText(doctor, currentFilters.doctor);
                     
+                    // 設定時段徽章
+                    const timeBadgeClass = timePeriod === 'morning' ? 'morning-badge' : 'afternoon-badge';
+                    const timeBadgeText = timePeriod === 'morning' ? '上午' : '下午';
+                    
                     htmlOutput += `
                         <div class="clinic-card active">
+                            <div class="time-badge ${timeBadgeClass}">${timeBadgeText}</div>
                             <div class="clinic-header">
                                 <div class="clinic-name">${department}</div>
                                 <div class="clinic-room">${highlightedRoom} 診</div>
@@ -451,12 +507,7 @@
                 }
             });
 
-            if (!foundMatch) {
-                showNoResults();
-                return '';
-            }
-
-            return htmlOutput;
+            return { html: htmlOutput, foundMatch };
         }
 
         // 獲取看診進度數據
@@ -464,13 +515,38 @@
             try {
                 showLoading();
                 
-                const html = await fetchWithCORSProxy(CONFIG.targetUrl);
-                const progressHtml = parseClinicProgress(html);
+                // 同時獲取上午和下午的數據
+                const [morningHtml, afternoonHtml] = await Promise.all([
+                    fetchWithCORSProxy(CONFIG.morningUrl),
+                    fetchWithCORSProxy(CONFIG.afternoonUrl)
+                ]);
+                
+                // 解析兩個時段的數據
+                const morningResult = parseClinicProgress(morningHtml, 'morning');
+                const afternoonResult = parseClinicProgress(afternoonHtml, 'afternoon');
+                
+                // 組合輸出
+                let finalHtml = '';
+                let hasMorningData = morningResult.foundMatch;
+                let hasAfternoonData = afternoonResult.foundMatch;
+                
+                if (hasMorningData) {
+                    finalHtml += `<div class="time-section">上午診次</div>`;
+                    finalHtml += morningResult.html;
+                }
+                
+                if (hasAfternoonData) {
+                    finalHtml += `<div class="time-section">下午診次</div>`;
+                    finalHtml += afternoonResult.html;
+                }
                 
                 // 更新顯示
-                if (progressHtml) {
-                    document.getElementById('progressContainer').innerHTML = progressHtml;
+                if (finalHtml) {
+                    document.getElementById('progressContainer').innerHTML = finalHtml;
+                } else {
+                    showNoResults();
                 }
+                
                 updateTimeDisplay();
                 
                 // 啟用刷新按鈕
@@ -541,7 +617,7 @@
             document.getElementById('roomFilter').value = currentFilters.room;
             document.getElementById('doctorFilter').value = currentFilters.doctor;
             
-            // 開始獲取數據
+            // 立即開始獲取數據，不等待任何事件
             fetchClinicProgress().then(() => {
                 if (isAutoRefresh) {
                     startAutoRefresh();
@@ -560,7 +636,7 @@
                 if (e.key === 'Enter') applyFilters();
             });
 
-            // 頁面可見性變化處理
+            // 頁面可見性變化處理 - 當頁面重新可見時立即更新
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
                     if (refreshTimer) {
@@ -568,7 +644,15 @@
                         refreshTimer = null;
                     }
                 } else if (isAutoRefresh) {
-                    startAutoRefresh();
+                    // 頁面重新可見時立即更新數據
+                    manualRefresh();
+                }
+            });
+
+            // 添加頁面焦點事件處理 - 當頁面獲得焦點時更新
+            window.addEventListener('focus', function() {
+                if (isAutoRefresh) {
+                    manualRefresh();
                 }
             });
         });
